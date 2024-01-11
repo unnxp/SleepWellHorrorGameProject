@@ -30,7 +30,6 @@ class Gamewidget(Widget):
         self._keyboard.bind(on_key_up=self._on_key_up)
 
         with self.canvas :
-            #self.door = Rectangle(source='door.png',pos=(600,0),size=(200,200))
             self.player = Rectangle(source='player.png',pos=(0,50),size=(200,400))
 
             self.soundwalk1 = SoundLoader.load('stepfoot1.wav')     
