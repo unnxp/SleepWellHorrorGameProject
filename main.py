@@ -7,6 +7,7 @@ from kivy.core.audio import SoundLoader
 from kivy.uix.label import Label
 from kivy.animation import Animation
 from kivy.uix.image import Image 
+from random import random, choice
 
 class ClockDisplay :
     def __init__(self,hourv,minutev):
@@ -45,9 +46,7 @@ class Gamewidget(Widget):
         
         self.soundBack = SoundLoader.load('backgroundsound1.wav')
         if self.soundBack:
-            # Set the sound to loop
             self.soundBack.loop = True
-                # Play the sound
             self.soundBack.play()
         
         self.keysPressed = set()
@@ -59,10 +58,24 @@ class Gamewidget(Widget):
         
     def _on_frame(self,dt):
         self.dispatch('on_frame',dt)
+        self.generate_random_events(dt)
+
+    def generate_random_events(self, dt):
+        chance = 0.01  # Adjust the chance as needed
+        if chance > random():
+            random_event = choice(['phone', 'door', 'candle'])
+            if random_event == 'phone':
+                phone_event = PhoneRingEvent(game.phone)
+                game.add_entity(phone_event)
+            elif random_event == 'door':
+                door_event = DoorOpenEvent(game.door)
+                game.add_entity(door_event)
+            elif random_event == 'candle':
+                candle_event = CandleOffEvent(game.candle)
+                game.add_entity(candle_event)
 
     def on_frame(self,dt):
         pass
-
         
     def add_entity(self,entity):
         self._entities.add(entity)
@@ -178,8 +191,18 @@ class Phone(Entity) :
         self.source = 'phone1.png'
         self.size = (200,180)
         self.pos = (600,50)
+        self.lst_source = ['phone1.png', 'phone2.png', 'phone3.png']
+        self.animation_interval = 0.08
+        self.animate_phone_ring()
+
     def on_frame(self,dt=None):
         pass
+
+    def animate_phone_ring(self, dt=None):
+        current_index = self.lst_source.index(self.source)
+        next_index = (current_index + 1) % len(self.lst_source)
+        self.source = self.lst_source[next_index]
+        Clock.schedule_once(self.animate_phone_ring, self.animation_interval)
 
 class Player(Entity):
     def __init__(self):
@@ -248,6 +271,115 @@ class Player(Entity):
         elif self.walk_index == 1:
             self.soundwalk2.play()
 
+class PhoneRingEvent(Entity):
+    def __init__(self, phone):
+        super().__init__()
+        self.source = 'phone1.png'
+        self.size = (200, 180)
+        self.pos = phone.pos
+        self.phone = phone
+        self.phone_ringing = False
+        self.jumpscare_triggered = False
+        self.jumpscare_time = 9  # seconds
+        self.clock_display = ClockDisplay(0, 0)
+        self.clock_display.tick()
+        self.jumpscare_sound = SoundLoader.load('jump_scare.wav')
+        self.phone_ring_sound = SoundLoader.load('phone_ring.wav')
+        self.phone_ring_sound.loop = True  # Set sound to loop
+        self.jumpscare_image = 'Momo.jpg'
+        self.animation_interval = 0.08
+        self.animate_phone_ring()
+
+    def animate_phone_ring(self, dt=None):
+        if not self.jumpscare_triggered:
+            current_index = self.phone.lst_source.index(self.source)
+            next_index = (current_index + 1) % len(self.phone.lst_source)
+            self.source = self.phone.lst_source[next_index]
+            Clock.schedule_once(self.animate_phone_ring, self.animation_interval)
+
+    def on_frame(self, dt=None):
+        if not self.jumpscare_triggered:
+            self.clock_display.tick()
+            if self.clock_display.display() == '00:09':
+                self.phone_ringing = True
+                self.phone_ring_sound.play()
+
+            if 'e' in game.keysPressed and self.phone_ringing:
+                self.phone_ringing = False
+                self.phone_ring_sound.stop()  # Stop the phone ring sound
+                game.remove_entity(self)  # Remove the phone ring event
+                self.jumpscare_triggered = True
+                Clock.schedule_once(self.trigger_jumpscare, 0)  # Trigger immediately
+
+    def trigger_jumpscare(self, dt):
+        if not game.player.collides(game.player, self) and self.jumpscare_triggered:
+            game.player.source = self.jumpscare_image
+            self.jumpscare_sound.play()
+
+class DoorOpenEvent(Entity):
+    def __init__(self, door):
+        super().__init__()
+        self.source = 'door.png'
+        self.size = (110, 250)
+        self.pos = door.pos
+        self.door = door
+        self.door_open_sound = SoundLoader.load('door_open.mp3')
+        self.door_close_sound = SoundLoader.load('door_closed.mp3')
+        self.jumpscare_triggered = False
+        self.jumpscare_time = 10  # seconds
+        self.jumpscare_sound = SoundLoader.load('jump_scare.wav')
+        self.jumpscare_image = 'DoorG.jpg'
+
+    def on_frame(self, dt=None):
+        if not self.jumpscare_triggered:
+            if 'e' in game.keysPressed:
+                self.door_open_sound.play()
+                game.remove_entity(self.door)
+                self.jumpscare_triggered = True
+                Clock.schedule_once(self.trigger_jumpscare, self.jumpscare_time)
+
+    def trigger_jumpscare(self, dt):
+        if not game.player.collides(game.player, self) and self.jumpscare_triggered:
+            game.player.source = self.jumpscare_image
+            self.jumpscare_sound.play()
+            game.add_entity(self.door)
+            Clock.schedule_once(self.play_door_close_sound, 1.5)
+
+    def play_door_close_sound(self, dt):
+        self.door_close_sound.play()
+
+
+class CandleOffEvent(Entity):
+    def __init__(self, candle):
+        super().__init__()
+        self.source = 'candle8.png'
+        self.size = (100, 120)
+        self.pos = candle.pos
+        self.candle = candle
+        self.candle_off_sound = SoundLoader.load('candle_off.mp3')
+        self.candle_on_sound = SoundLoader.load('candle_on.mp3')
+        self.jumpscare_triggered = False
+        self.jumpscare_time = 6  # seconds
+        self.jumpscare_sound = SoundLoader.load('jump_scare.wav')
+        self.jumpscare_image = 'ghost.png'
+
+    def on_frame(self, dt=None):
+        if not self.jumpscare_triggered:
+            if 'e' in game.keysPressed:
+                self.candle_off_sound.play()
+                self.jumpscare_triggered = True
+                Clock.schedule_once(self.trigger_jumpscare, self.jumpscare_time)
+
+    def trigger_jumpscare(self, dt):
+        if not game.player.collides(game.player, self) and self.jumpscare_triggered:
+            game.player.source = self.jumpscare_image
+            self.jumpscare_sound.play()
+            self.candle.source = 'candle1.png'
+            Clock.schedule_once(self.play_candle_on_sound, 1.5)
+
+    def play_candle_on_sound(self, dt):
+        self.candle_on_sound.play()
+
 game = Gamewidget()
 game.door = Door()
 game.add_entity(game.door)
@@ -255,9 +387,14 @@ game.phone = Phone()
 game.add_entity(game.phone)
 game.candle = Candle()
 game.add_entity(game.candle)
+game.phone_event = PhoneRingEvent(game.phone)
+game.add_entity(game.phone_event)
+game.door_event = DoorOpenEvent(game.door)
+game.add_entity(game.door_event)
+game.candle_event = CandleOffEvent(game.candle)
+game.add_entity(game.candle_event)
 game.player = Player()
 game.add_entity(game.player)
-
 
 class SleepWell(App):
     def build(self):
