@@ -4,22 +4,29 @@ from kivy.graphics import Rectangle
 from kivy.core.window import Window
 from kivy.clock import Clock
 from kivy.core.audio import SoundLoader
+from kivy.uix.label import Label
+from kivy.animation import Animation
 
-def collides(rect1,rect2):
-    r1x = rect1[0][0]
-    r1y = rect1[0][1]
-    r2x = rect2[0][0]
-    r2y = rect2[0][1]
-    r1w = rect1[1][0]
-    r1h = rect1[1][1]
-    r2w = rect2[1][0]
-    r2h = rect2[1][1]
+class ClockDisplay :
+    def __init__(self,hourv,minutev):
+        self.hour = NumberDisplay(hourv)
+        self.minute = NumberDisplay(minutev)
+        
+    
+    def tick(self):
+        self.minute.tick()
+        if self.minute.v == 60:
+            self.minute.v = 0
+            self.hour.tick()
+    
+    def display(self):
+        return '{:02d}:{:02d}'.format(self.hour.v,self.minute.v)
 
-    if(r1x < r2x + r2w and r1x + r1w > r2x and r1y < r2y + r2h and r1y + r1h > r2y):
-        return True
-    else :
-        return False
-
+class NumberDisplay:
+    def __init__(self,initv) :
+        self.v = initv
+    def tick(self):
+        self.v = self.v + 1        
 
 
 class Gamewidget(Widget):
@@ -28,28 +35,63 @@ class Gamewidget(Widget):
         self._keyboard = Window.request_keyboard(self._on_keyboard_closed,self)
         self._keyboard.bind(on_key_down=self._on_key_down)
         self._keyboard.bind(on_key_up=self._on_key_up)
-
+        self.clock_display = ClockDisplay(0, 0)
+        self.clock_label = Label(text='', font_size=20, pos=(20, Window.height - 1))
+        self.add_widget(self.clock_label)
+        self.register_event_type('on_frame')
         with self.canvas :
-            self.player = Rectangle(source='player.png',pos=(0,50),size=(200,400))
-
-            self.soundwalk1 = SoundLoader.load('stepfoot1.wav')     
-            self.soundwalk2 = SoundLoader.load('stepfoot2.wav')
-            self.soundwalk3 = SoundLoader.load('stepfoot3.wav')
-            self.soundwalk4 = SoundLoader.load('stepfoot2.wav')
-            self.soundBack = SoundLoader.load('backgroundsound1.wav')
-            if self.soundBack:
-                # Set the sound to loop
-                self.soundBack.loop = True
+            pass
+        
+        self.soundBack = SoundLoader.load('backgroundsound1.wav')
+        if self.soundBack:
+            # Set the sound to loop
+            self.soundBack.loop = True
                 # Play the sound
-                self.soundBack.play()
+            self.soundBack.play()
         
         self.keysPressed = set()
-        self.animation_counter_d = 0
-        self.animation_counter_a = 0
-        Clock.schedule_interval(self.move_step,0.45)
-        Clock.schedule_interval(self.animate_player_d, 0.45)
-        Clock.schedule_interval(self.animate_player_a, 0.45)
+        self._entities = set()
 
+        Clock.schedule_interval(self._on_frame,0.45)
+        Clock.schedule_interval(self.update_clock_label, 1.5)
+
+        
+    def _on_frame(self,dt):
+        self.dispatch('on_frame',dt)
+
+    def on_frame(self,dt):
+        pass
+
+        
+    def add_entity(self,entity):
+        self._entities.add(entity)
+        self.canvas.add(entity._instruction)
+
+    def remove_entity(self,entity):
+        if entity in self._entities:
+            self._entities.remove(entity)
+            self.canvas.remove(entity._instruction)
+    def collides(self,e1,e2):
+        r1x = e1.pos[0]
+        r1y = e1.pos[1]
+        r2x = e2.pos[0]
+        r2y = e2.pos[1]
+        r1w = e1.size[0]
+        r1h = e1.size[1]
+        r2w = e2.size[0]
+        r2h = e2.size[1]
+
+        if(r1x < r2x + r2w and r1x + r1w > r2x and r1y < r2y + r2h and r1y + r1h > r2y):
+            return True
+        else :
+            return False
+        
+    def colliding_entities(self,entity):
+        result = set()
+        for e in self._entities :
+            if self.collides(e,entity) and e == entity :
+                result.add(e)
+        return result
 
     def _on_keyboard_closed(self):
         self._key_board.unbind(on_key_down=self.on_key_down)
@@ -64,51 +106,121 @@ class Gamewidget(Widget):
             self.keysPressed.remove(text)
             self.player.source = 'player.png'
             self.animation_counter = 0
-
-    def move_step(self,dt):
-        currentx = self.player.pos[0]
-        currenty = self.player.pos[1]
-        step_size = 100*dt
-        if 'a' in self.keysPressed :
-            currentx -= step_size
-            self.animation_counter_a += 1
-
-        if 'd' in self.keysPressed :
-            currentx += step_size   
-            self.animation_counter_d += 1
-
-        self.player.pos = (currentx,currenty)
-        #if collides((self.player.pos,self.player.size),(self.door.pos,self.door.size)):
-            #print('colliding!')
-        #else :
-            #print('not colliding')
     
-    def animate_player_d(self, dt):
-        if 'd' in self.keysPressed:
-            if self.animation_counter_d % 2 == 0:
-                self.player.source = 'RW1.png'
-                self.soundwalk1.play()
-            else:
-                self.player.source = 'RW2.png'
-                self.soundwalk2.play()
-    def animate_player_a(self, dt):
-        if 'a' in self.keysPressed:
-            if self.animation_counter_a % 2 == 0:
-                self.player.source = 'LW1.png'
-                self.soundwalk3.play()
-            else:
-                self.player.source = 'LW2.png'
-                self.soundwalk4.play()
+    def update_clock_label(self, dt):
+        self.clock_display.tick()
+        self.clock_label.text = f"Time: {self.clock_display.display()}"
 
-    def animate_player(self, dt):
-        # Handle animation based on direction (left or right)
-        if 'a' in self.keysPressed:
-            self.animate_left()
-        elif 'd' in self.keysPressed:
-            self.animate_right()
+class Entity(object):
+    def __init__(self):
+        self._pos = (0,0)
+        self._size = (50,50)
+        self._source = 'example.png'
+        self._instruction = Rectangle(pos=self._pos,size=self._size,source=self._source)
+    @property
+    def pos(self):
+        return self._pos
+    
+    @pos.setter
+    def pos(self,value):
+        self._pos = value
+        self._instruction.pos = self._pos
+    
+    @property
+    def size(self):
+        return self._size
+    
+    @size.setter
+    def size(self,value):
+        self._size = value
+        self._instruction.size = self._size
+
+    @property
+    def source(self):
+        return self._source
+    
+    @source.setter
+    def source(self,value):
+        self._source = value
+        self._instruction.source = self._source
+
+class Phone(Entity) :     
+    def __init__(self):
+        super().__init__()
+        self.source = 'phone1.png'
+
+class Player(Entity):
+    def __init__(self):
+        super().__init__()
+        
+        self.source = 'player.png'
+        self.size = (200, 400)
+        self.pos = (0, 0)
+        self.moving_right = False
+        self.moving_left = False
+        self.load_walk_images()
+        game.bind(on_frame=self.on_frame)
+
+        self.soundwalk1 = SoundLoader.load('stepfoot1.wav')     
+        self.soundwalk2 = SoundLoader.load('stepfoot2.wav')
+        self.soundwalk3 = SoundLoader.load('stepfoot3.wav')
+
+    def load_walk_images(self):
+        # Load walking images
+        self.walk_images_right = ['RW1.png', 'RW2.png']
+        self.walk_images_left = ['LW1.png', 'LW2.png']
+        self.walk_index = 0
+
+    def stop_callback(self):
+        game.unbind(on_frame=self.on_frame)
+
+    def on_frame(self, sender, dt):
+        step_size = 200 * dt
+        newx = self.pos[0]
+        newy = self.pos[1]
+
+        if 'a' in game.keysPressed:
+            newx -= step_size
+            self.moving_left = True
+            self.moving_right = False
+        elif 'd' in game.keysPressed:
+            newx += step_size
+            self.moving_right = True
+            self.moving_left = False
+        else:
+            self.moving_left = False
+            self.moving_right = False
+
+        self.pos = (newx, newy)
+
+        if 'e' in game.keysPressed:
+            # This is where you can handle the action when 'e' is pressed
+            pass
+
+        self.update_walk_animation()
+
+    def update_walk_animation(self):
+        if self.moving_right:
+            self.source = self.walk_images_right[self.walk_index]
+            self.play_footstep_sound()
+        elif self.moving_left:
+            self.source = self.walk_images_left[self.walk_index]
+            self.play_footstep_sound()
+
+        self.walk_index = (self.walk_index + 1) % len(self.walk_images_right)
+    
+    def play_footstep_sound(self):
+        if self.walk_index == 0:
+            self.soundwalk1.play()
+        elif self.walk_index == 1:
+            self.soundwalk2.play()
+
+game = Gamewidget()
+game.player = Player()
+game.add_entity(game.player)        
 class SleepWell(App):
     def build(self):
-        return Gamewidget()
+        return game
 
 if __name__ == '__main__' :
     app = SleepWell()
