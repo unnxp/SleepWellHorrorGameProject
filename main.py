@@ -6,6 +6,7 @@ from kivy.clock import Clock
 from kivy.core.audio import SoundLoader
 from kivy.uix.label import Label
 from kivy.animation import Animation
+from kivy.uix.image import Image 
 
 class ClockDisplay :
     def __init__(self,hourv,minutev):
@@ -28,7 +29,6 @@ class NumberDisplay:
     def tick(self):
         self.v = self.v + 1        
 
-
 class Gamewidget(Widget):
     def __init__(self,**kwargs):
         super().__init__(**kwargs)
@@ -36,11 +36,12 @@ class Gamewidget(Widget):
         self._keyboard.bind(on_key_down=self._on_key_down)
         self._keyboard.bind(on_key_up=self._on_key_up)
         self.clock_display = ClockDisplay(0, 0)
-        self.clock_label = Label(text='', font_size=20, pos=(20, Window.height - 1))
-        self.add_widget(self.clock_label)
         self.register_event_type('on_frame')
+        
+
         with self.canvas :
-            pass
+            Rectangle(source='BackGR1.png',pos=(0,0),size=(Window.width,Window.height))
+            self.clock_label = Label(text='', font_size=20, pos=(20, Window.height - 100))
         
         self.soundBack = SoundLoader.load('backgroundsound1.wav')
         if self.soundBack:
@@ -52,8 +53,8 @@ class Gamewidget(Widget):
         self.keysPressed = set()
         self._entities = set()
 
-        Clock.schedule_interval(self._on_frame,0.45)
-        Clock.schedule_interval(self.update_clock_label, 1.5)
+        Clock.schedule_interval(self._on_frame,0.375)
+        Clock.schedule_interval(self.update_clock_label, 1)
 
         
     def _on_frame(self,dt):
@@ -144,17 +145,48 @@ class Entity(object):
         self._source = value
         self._instruction.source = self._source
 
-class Phone(Entity) :     
+class Door(Entity):
+    def __init__(self):
+        super().__init__()
+        self.source = 'door.png'
+        self.size = (110,250)
+        self.pos = (340,160)
+    def on_frame(self, dt=None):
+        pass
+
+class Candle(Entity):
+    def __init__(self):
+        super().__init__()
+        self.source = 'candle1.png'
+        self.size = (100,120)
+        self.pos = (100,250)
+        self.lst_source = ['candle1.png', 'candle2.png', 'candle3.png', 'candle4.png', 'candle5.png', 'candle6.png', 'candle7.png']
+        self.animation_interval = 0.08
+        self.animate_candle()
+    def on_frame(self, dt=None):
+        pass   
+
+    def animate_candle(self, dt=None):
+        current_index = self.lst_source.index(self.source)
+        next_index = (current_index + 1) % len(self.lst_source)
+        self.source = self.lst_source[next_index]
+        Clock.schedule_once(self.animate_candle, self.animation_interval)
+
+class Phone(Entity) :    
     def __init__(self):
         super().__init__()
         self.source = 'phone1.png'
+        self.size = (200,180)
+        self.pos = (600,50)
+    def on_frame(self,dt=None):
+        pass
 
 class Player(Entity):
     def __init__(self):
         super().__init__()
         
         self.source = 'player.png'
-        self.size = (200, 400)
+        self.size = (150, 300)
         self.pos = (0, 0)
         self.moving_right = False
         self.moving_left = False
@@ -166,7 +198,6 @@ class Player(Entity):
         self.soundwalk3 = SoundLoader.load('stepfoot3.wav')
 
     def load_walk_images(self):
-        # Load walking images
         self.walk_images_right = ['RW1.png', 'RW2.png']
         self.walk_images_left = ['LW1.png', 'LW2.png']
         self.walk_index = 0
@@ -190,6 +221,8 @@ class Player(Entity):
         else:
             self.moving_left = False
             self.moving_right = False
+        newx = max(0, min(newx, Window.width - self.size[0]))
+        newy = max(0, min(newy, Window.height - self.size[1]))
 
         self.pos = (newx, newy)
 
@@ -216,10 +249,19 @@ class Player(Entity):
             self.soundwalk2.play()
 
 game = Gamewidget()
+game.door = Door()
+game.add_entity(game.door)
+game.phone = Phone()
+game.add_entity(game.phone)
+game.candle = Candle()
+game.add_entity(game.candle)
 game.player = Player()
-game.add_entity(game.player)        
+game.add_entity(game.player)
+
+
 class SleepWell(App):
     def build(self):
+        
         return game
 
 if __name__ == '__main__' :
